@@ -7,20 +7,23 @@ import (
 )
 
 type Connection struct {
-	Conn    *net.TCPConn
-	ConnID  uint32
-	Closed  bool
-	Handler wiface.HandlerFunc
+	Conn   *net.TCPConn
+	ConnID uint32
+	Closed bool
 	// 管理连接状态
 	ExitChan chan bool
+
+	// 该链接处理的方法router
+	Router wiface.IRouter
 }
 
-func NewConnection(conn *net.TCPConn, id uint32, callback wiface.HandlerFunc) *Connection {
+// router的本质仍然是处理回调
+func NewConnection(conn *net.TCPConn, id uint32, router wiface.IRouter) *Connection {
 	return &Connection{
 		Conn:     conn,
 		ConnID:   id,
 		Closed:   false,
-		Handler:  callback,
+		Router:   router,
 		ExitChan: make(chan bool, 1),
 	}
 }
@@ -33,16 +36,26 @@ func (c *Connection) Worker() {
 
 	for {
 		buf := make([]byte, 512)
-		cnt, err := c.Conn.Read(buf)
+		_, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("recv buf err ", err)
 			continue
 		}
 
-		if err := c.Handler(c.Conn, buf, cnt); err != nil {
-			fmt.Printf("ConnID %d handler is error %v", c.ConnID, err)
-			break
+		//if err := c.Handler(c.Conn, buf, cnt); err != nil {
+		//	fmt.Printf("ConnID %d handler is error %v", c.ConnID, err)
+		//	break
+		//}
+
+		req := &Request{
+			Conn: c,
+			Data: buf,
 		}
+
+		// 从路由中找到注册绑定的Conn对应的router调用
+		c.Router.PreHandler(req)
+		c.Router.Handler(req)
+		c.Router.PostHandler(req)
 	}
 }
 

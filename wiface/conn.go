@@ -3,7 +3,7 @@ package wiface
 import "net"
 
 // 定义链接模块的抽象层
-type Connection interface {
+type IConnection interface {
 	// start conn
 	Start()
 	//
